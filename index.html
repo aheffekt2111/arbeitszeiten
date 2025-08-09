@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Arbeitszeit & Verdienst</title>
+  
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0b0c0f">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Arbeitszeit">
+    
+  <style>
+    :root{
+      --bg:#0b0c0f; --card:#151824; --ink:#e9ecf1; --muted:#a7afbf;
+      --accent:#6dd1ff; --accent-2:#7affb0; --error:#ff6b6b;
+      --radius:14px; --gap:14px; --pad:18px; --shadow:0 10px 30px rgba(0,0,0,.35)
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
+      background:radial-gradient(1200px 600px at 80% -10%, #12233a, transparent),
+                 radial-gradient(1000px 700px at -10% 110%, #1b2a34, transparent),
+                 var(--bg);
+      color:var(--ink);
+      /* TOP-SAFE LAYOUT for iOS: no centering; start at top and allow natural scroll */
+      display:block;
+      padding:16px;
+      padding-top: calc(env(safe-area-inset-top) + 16px);
+      padding-bottom: calc(env(safe-area-inset-bottom) + 20px);
+      min-height:100%;
+    }
+    .app{
+      width:100%;
+      max-width:520px;
+      margin:0 auto;
+      background:linear-gradient(180deg,#171a28,#121523);
+      border:1px solid #23283a; border-radius:calc(var(--radius) + 4px);
+      box-shadow:var(--shadow); overflow:hidden
+    }
+    header{padding:22px var(--pad) 10px; position:relative}
+    header h1{margin:0; font-size:1.2rem; letter-spacing:.2px}
+    header p{margin:.35rem 0 0; color:var(--muted); font-size:.95rem}
+
+    .card{background:var(--card); margin:0 var(--pad) var(--gap); border-radius:var(--radius); padding:var(--pad); border:1px solid #23283a}
+    .row{display:grid; grid-template-columns:1fr auto; gap:10px}
+    .grid{display:grid; gap:12px}
+    @media(min-width:430px){ .grid-2{grid-template-columns:1fr 1fr} }
+    label{display:block; font-size:.9rem; color:var(--muted); margin-bottom:6px}
+    input, select, button{
+      width:100%; padding:14px 12px; border-radius:12px; border:1px solid #2a3148;
+      background:#0f1322; color:var(--ink); font-size:1rem; outline:none;
+    }
+    input[type=time]{padding:12px}
+    input::placeholder{color:#7f89a3}
+    button{
+      cursor:pointer; border:1px solid #304063; background:linear-gradient(180deg,#15314d,#0f2238);
+      transition:transform .05s ease, filter .15s ease, background .2s ease;
+    }
+    button:active{transform:translateY(1px)}
+    .ghost{background:#0e1424; border-color:#26304b}
+    .accent{background:linear-gradient(180deg,#0f2d4a,#0c253d); border-color:#2f5f8f}
+    .chip{
+      display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border-radius:999px;
+      background:#0e1424; border:1px solid #2a3148; color:var(--muted); font-size:.85rem
+    }
+    .result{display:grid; gap:10px; margin-top:10px}
+    .result .big{font-size:1.6rem; font-weight:700}
+    .muted{color:var(--muted)}
+    .ok{color:var(--accent-2)}
+    .warn{color:var(--accent)}
+    .err{color:var(--error)}
+    .hint{font-size:.9rem; color:var(--muted)}
+    footer{padding:10px var(--pad) 18px; text-align:center; color:var(--muted); font-size:.85rem}
+    .split{display:flex; gap:10px}
+    .split > *{flex:1}
+    .small{font-size:.9rem}
+    .sr-only{position:absolute !important; width:1px;height:1px; padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  </style>
+</head>
+<body>
+  <main class="app" role="application" aria-labelledby="title">
+    <header>
+      <h1 id="title">Arbeitszeit & Verdienst</h1>
+      <p>Schnell Start- & Endzeit eintragen — App rechnet Zeit & Lohn. Offline-fähig.</p>
+    </header>
+
+    <section class="card grid">
+      <div class="grid grid-2">
+        <div>
+          <label for="start">Start</label>
+          <div class="row">
+            <input id="start" type="time" inputmode="numeric" required aria-describedby="overnight-note" />
+            <button class="ghost" id="nowStart" type="button" title="Jetzt setzen">Jetzt</button>
+          </div>
+        </div>
+        <div>
+          <label for="end">Feierabend</label>
+          <div class="row">
+            <input id="end" type="time" inputmode="numeric" required />
+            <button class="ghost" id="nowEnd" type="button" title="Jetzt setzen">Jetzt</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div>
+          <label for="pause">Pausen (Minuten, optional)</label>
+          <input id="pause" type="number" inputmode="numeric" min="0" step="1" placeholder="0" />
+        </div>
+        <div>
+          <label for="decimals">Dezimalstellen</label>
+          <input id="decimals" type="number" min="1" max="3" step="1" value="2" />
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div>
+          <label for="wage">Stundenlohn</label>
+          <input id="wage" type="number" min="0" step="0.01" placeholder="z. B. 16.50" />
+        </div>
+        <div>
+          <label for="currency">Währung</label>
+          <select id="currency" aria-label="Währung">
+            <option value="EUR" selected>EUR (€)</option>
+            <option value="CHF">CHF (Fr.)</option>
+            <option value="USD">USD ($)</option>
+            <option value="GBP">GBP (£)</option>
+            <option value="PLN">PLN (zł)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="split">
+        <button id="calc" class="accent" type="button">Berechnen</button>
+        <button id="reset" class="ghost" type="button">Zurücksetzen</button>
+      </div>
+
+      <p id="overnight-note" class="hint">
+        Tipp: Wenn der Feierabend vor der Startzeit liegt, wird automatisch <strong>am nächsten Tag</strong> angenommen.
+      </p>
+
+      <div class="result" aria-live="polite" aria-atomic="true">
+        <div id="duration" class="big">Arbeitszeit: –</div>
+        <div id="decimal" class="muted">Dezimalstunden: –</div>
+        <div id="earnings" class="big">Verdienst: –</div>
+        <div id="messages" class="muted small"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <span class="chip">💾 Speichert Stundenlohn & Währung lokal</span>
+      <span class="chip">🌙 Nacht-/Über-Mitternacht-Schichten</span>
+      <span class="chip">📱 Mobile-optimiert</span>
+      <span class='chip'>📡 Funktioniert offline</span>
+    </section>
+
+    <footer>
+      © <span id="year"></span> – Kleines Tool, keine Gewähr.
+    </footer>
+  </main>
+
+  <script>
+    const els = {
+      start: document.getElementById('start'),
+      end: document.getElementById('end'),
+      pause: document.getElementById('pause'),
+      decimals: document.getElementById('decimals'),
+      wage: document.getElementById('wage'),
+      currency: document.getElementById('currency'),
+      calc: document.getElementById('calc'),
+      reset: document.getElementById('reset'),
+      nowStart: document.getElementById('nowStart'),
+      nowEnd: document.getElementById('nowEnd'),
+      duration: document.getElementById('duration'),
+      decimal: document.getElementById('decimal'),
+      earnings: document.getElementById('earnings'),
+      messages: document.getElementById('messages'),
+      year: document.getElementById('year'),
+    };
+    els.year.textContent = new Date().getFullYear();
+
+    
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(()=>{});
+      });
+    }
+    
+
+    try{
+      const saved = JSON.parse(localStorage.getItem('aw-settings') || '{}');
+      if (saved.wage != null) els.wage.value = saved.wage;
+      if (saved.currency) els.currency.value = saved.currency;
+      if (saved.decimals) els.decimals.value = saved.decimals;
+    }catch{}
+
+    function saveSettings(){
+      const data = {
+        wage: els.wage.value ? Number(els.wage.value) : null,
+        currency: els.currency.value,
+        decimals: clamp(parseInt(els.decimals.value || "2",10),1,3),
+      };
+      localStorage.setItem('aw-settings', JSON.stringify(data));
+    }
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+    function timeToDate(t){
+      const now = new Date();
+      const [h,m] = (t || '').split(':').map(Number);
+      if (Number.isFinite(h) && Number.isFinite(m)){
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+        return d;
+      }
+      return null;
+    }
+
+    function calcMinutes(){
+      const start = timeToDate(els.start.value);
+      const end = timeToDate(els.end.value);
+      const pauseMin = Number(els.pause.value || 0);
+
+      if (!start || !end){
+        return { ok:false, msg:'Bitte Start- und Endzeit eingeben.' };
+      }
+      let diffMin = Math.round((end - start) / 60000);
+      let overnight = false;
+
+      if (diffMin < 0){
+        diffMin += 24*60;
+        overnight = true;
+      }
+
+      if (pauseMin > 0){
+        diffMin -= pauseMin;
+      }
+      if (diffMin < 0){
+        return { ok:false, msg:'Pausen sind länger als die Schicht. Bitte Eingaben prüfen.' };
+      }
+      return { ok:true, minutes:diffMin, overnight };
+    }
+
+    function formatHHMM(mins){
+      const h = Math.floor(mins / 60);
+      const m = Math.round(mins % 60);
+      return `${h} h ${pad(m)} min`;
+    }
+
+    function formatDecimal(mins, decimals){
+      const val = mins / 60;
+      return new Intl.NumberFormat('de-DE', {
+        minimumFractionDigits: decimals, maximumFractionDigits: decimals
+      }).format(val);
+    }
+
+    function formatMoney(amount, currency){
+      try{
+        return new Intl.NumberFormat('de-DE', { style:'currency', currency }).format(amount);
+      }catch{
+        return `${amount.toFixed(2)} ${currency}`;
+      }
+    }
+
+    function calculate(){
+      saveSettings();
+      els.messages.textContent = '';
+      const decimals = clamp(parseInt(els.decimals.value || '2', 10), 1, 3);
+
+      const res = calcMinutes();
+      if (!res.ok){
+        els.duration.textContent = 'Arbeitszeit: –';
+        els.decimal.textContent = 'Dezimalstunden: –';
+        els.earnings.textContent = 'Verdienst: –';
+        els.messages.innerHTML = `<span class="err">${res.msg}</span>`;
+        return;
+      }
+
+      const mins = res.minutes;
+      const hhmm = formatHHMM(mins);
+      const decStr = formatDecimal(mins, decimals);
+      const decVal = mins / 60;
+
+      els.duration.innerHTML = `Arbeitszeit: <span class="ok">${hhmm}</span>`;
+      els.decimal.innerHTML = `Dezimalstunden: <strong>${decStr}</strong>`;
+
+      const wage = Number(els.wage.value || 0);
+      const cur = els.currency.value || 'EUR';
+
+      if (wage > 0){
+        const earnings = decVal * wage;
+        els.earnings.innerHTML = `Verdienst: <span class="big">${formatMoney(earnings, cur)}</span>`;
+      }else{
+        els.earnings.textContent = 'Verdienst: –';
+      }
+
+      if (res.overnight){
+        els.messages.innerHTML = `<span class="warn">Hinweis: Feierabend liegt vor Start – es wird automatisch der <strong>nächste Tag</strong> angenommen.</span>`;
+      }
+    }
+
+    function setNow(target){
+      const now = new Date();
+      target.value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      calculate();
+    }
+
+    els.calc.addEventListener('click', calculate);
+    els.reset.addEventListener('click', () => {
+      els.start.value = '';
+      els.end.value = '';
+      els.pause.value = '';
+      els.duration.textContent = 'Arbeitszeit: –';
+      els.decimal.textContent = 'Dezimalstunden: –';
+      els.earnings.textContent = 'Verdienst: –';
+      els.messages.textContent = '';
+    });
+
+    ['start','end','pause','wage','currency','decimals'].forEach(id=>{
+      els[id].addEventListener('input', (id==='wage'||id==='currency') ? saveSettings : calculate);
+      els[id].addEventListener('change', calculate);
+    });
+
+    document.getElementById('nowStart').addEventListener('click',()=>setNow(els.start));
+    document.getElementById('nowEnd').addEventListener('click',()=>setNow(els.end));
+
+    const auto = () => { if (els.start.value && els.end.value) calculate(); };
+    els.start.addEventListener('change', auto);
+    els.end.addEventListener('change', auto);
+
+    window.addEventListener('DOMContentLoaded', auto);
+  </script>
+</body>
+</html>
